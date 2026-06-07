@@ -1,0 +1,22 @@
+services:
+  zkp-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder          # use builder stage — has rustc, cargo, circom, snarkjs
+    container_name: zkp_exchange_dev
+    entrypoint: /bin/bash
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/app
+      - cargo-registry:/usr/local/cargo/registry   # caches downloaded crates
+      - cargo-target:/app/zkp-exchange-network/target  # caches compiled artifacts
+    working_dir: /app
+    environment:
+      - RUST_LOG=info
+      - NODE_PATH=/usr/local/lib/node_modules:/usr/local/lib/node_modules/snarkjs/node_modules
+
+volumes:
+  cargo-registry:
+  cargo-target:

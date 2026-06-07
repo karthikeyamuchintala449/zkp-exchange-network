@@ -1,0 +1,14 @@
+[package]
+name = "zkp-exchange-network"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "zkp-cli"
+path = "src/main.rs"
+
+[dependencies]
+#standard crypto/zk libraries mathcing your requirements
+halo2_proofs = "0.3.0"
+sha2 = "0.10.0"
+tokio = { version = "1.0", features = ["full"]}

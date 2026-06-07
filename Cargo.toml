@@ -1,0 +1,3 @@
+[workspace]
+members = ["zkp-exchange-network"]
+resolver = "2"
