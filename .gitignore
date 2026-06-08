@@ -1,0 +1,62 @@
+# Git ignore rules for ZKP Exchange Network project
+
+# Rust build artifacts
+/target/
+Cargo.lock
+*.rlib
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.code-workspace
+
+# Node/TypeScript
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# Circom and SnarkJS artifacts
+circuits/build/
+circuits/*.sym
+circuits/*.r1cs
+circuits/*_js/
+*.wasm
+*.ptau
+*.zkey
+
+# Proving/Verification keys (sensitive!)
+*.proving_key
+*.verification_key
+*.vkey
+*.pkey
+keys/
+secrets/
+
+# Test artifacts
+test-output/
+coverage/
+*.profraw
+*.profdata
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS
+Thumbs.db
+.directory
+
+# Temporary files
+*.tmp
+*.temp
+*.bak

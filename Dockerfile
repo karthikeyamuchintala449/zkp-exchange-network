@@ -29,7 +29,7 @@ COPY zkp-exchange-network/Cargo.toml ./zkp-exchange-network/
 
 # Build project dependencies using the source files
 COPY zkp-exchange-network/src ./zkp-exchange-network/src
-RUN cargo build --release -p zkp-exchange-network
+RUN cargo build --release -p zkp_exchange_network
 
 FROM debian:bookworm-slim
 

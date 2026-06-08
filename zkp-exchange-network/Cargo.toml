@@ -1,5 +1,5 @@
 [package]
-name = "zkp-exchange-network"
+name = "zkp_exchange_network"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,8 +7,14 @@ edition = "2021"
 name = "zkp-cli"
 path = "src/main.rs"
 
+[lib]
+name = "zkp_exchange_network"
+path = "src/lib.rs"
+
 [dependencies]
 #standard crypto/zk libraries mathcing your requirements
 halo2_proofs = "0.3.0"
 sha2 = "0.10.0"
 tokio = { version = "1.0", features = ["full"]}
+serde_json = "1.0.0"
+serde = { version = "1.0", features = ["derive"] }
