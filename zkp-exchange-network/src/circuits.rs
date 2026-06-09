@@ -266,7 +266,7 @@ mod tests {
 
        #[test]
     fn test_validate_circuit() {
-        let manager = CircuitManager::new();
+        
         // Invalid circuit with no constraints
         let invalid = CircuitConfig {
             id: "invalid".to_string(),
