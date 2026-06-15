@@ -6,6 +6,11 @@ services:
       target: builder          # use builder stage — has rustc, cargo, circom, snarkjs
     container_name: zkp_exchange_dev
     entrypoint: /bin/bash
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          
     stdin_open: true
     tty: true
     volumes:
