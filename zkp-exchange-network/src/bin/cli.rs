@@ -7,6 +7,9 @@ use zkp_exchange_network::{
 };
 
 use std::env;
+use std::fs;
+use std::path::Path;
+
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -103,27 +106,177 @@ fn cmd_list_keys() {
 }
 
 
-fn cmd_prove(_args: &[String]) {
-    println!("Proof generation requires compiled circuits and proving keys.");
-    println!("This is a placeholder for the actual implementation.");
-    println!();
-    println!("In production, this would:");
-    println!("  1. Load the circuit and proving key");
-    println!("  2. Create a witness from your private inputs");
-    println!("  3. Run the zk-SNARK prover (e.g., Groth16)");
-    println!("  4. Output the proof and public signals");
+fn cmd_prove(args: &[String]) {
+  
+    if args.len() < 4 {
+        eprintln!("Usage zkp-cli prove --circuit <id> --private '<json>' --public '<json>'");
+        return;
+    }
+
+    // Parse command line arguments
+    let mut circuit_id = String::new();
+    let mut private_json = String::new();
+    let mut public_json = String::new();
+
+    // parse arguments
+    let mut i = 0;
+    let  prover = Prover::new();
+   
+while i < args.len() {
+    match args[i].as_str() {
+        "--circuit" => {
+            if i + 1 < args.len() {
+                circuit_id = args[i + 1].clone();
+                i += 2;
+            } else {
+                i += 1;
+            }
+        }
+        "--private" => {
+            if i + 1 < args.len() {
+                let raw_val = args[i + 1].clone();
+                if Path::new(&raw_val).exists() {
+                    private_json = fs::read_to_string(&raw_val)
+                        .expect("Failed to read private inputs file");
+                } else {
+                    private_json = raw_val.trim_matches('\'').to_string();
+
+                }
+                i += 2;
+            } else {
+                i += 1;
+            }
+        }
+        "--public" => {
+            if i + 1 < args.len() {
+                let raw_val = args[i + 1].clone();
+                if Path::new(&raw_val).exists() {
+                    public_json = fs::read_to_string(&raw_val)
+                        .expect("Failed to read public inputs file");
+                } else {
+                    public_json = raw_val.trim_matches('\'').to_string();
+                }
+                i += 2;
+            } else {
+                i += 1;
+            }
+        }
+        _ => i += 1, // ← this was missing, causes compiler error without it
+    }
+}
+
+    // validate inputs from the cli command
+    if circuit_id.is_empty() || private_json.is_empty() || public_json.is_empty() {
+        eprintln!("Error: Missing reuired arguments");
+        return;
+    }
+
+    // Create proof requiest 
+    let request = ProofRequest {
+       // Around line 175: Clone it so ownership stays with the variable for later use
+        circuit_id:circuit_id.clone(),
+
+        private_inputs:match serde_json::from_str(&private_json) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("Invalid private inputs JSON:{}",e);
+                return;
+            }
+        },
+        public_inputs:match serde_json::from_str(&public_json) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("Invlaid public inputs JSON:{}",e);
+                return;
+
+            }
+        },
+        metadata: None,
+    };
+    //Generate proof
+    let mut prover = Prover::new();
+    if let Err(e) = prover.load_default_circuits() {
+        eprintln!("Error loading circuits: {}", e);
+        return;
+    }
+  
+    
+
+    match prover.generate_proof(request) {
+        Ok(proof) => match serde_json::to_string_pretty(&proof) {
+         Ok(json) => println!("{}",json),
+         Err(e) => eprintln!("Serialization error : {}",e),
+
+        },
+        Err(e) => eprintln!("Proof generation failed:{}",e),
+    }
+
+
 }
 
 
-fn cmd_verify(_args: &[String]) {
-    println!("Proof verification requires compiled circuits and verification keys.");
-    println!("This is a placeholder for the actual implementation.");
-    println!();
-    println!("In production, this would:");
-    println!("  1. Load the circuit and verification key");
-    println!("  2. Load the proof and public inputs");
-    println!("  3. Run the verification algorithm");
-    println!("  4. Output true/false");
+fn cmd_verify(args: &[String]) {
+    if args.len() < 2 {
+        eprintln!("Usage: zkp-cli verify --proof '<json>' [--max-age <seconds>]");
+        return;
+    }
+
+    let mut proof_json = String::new();
+    let mut max_age: Option<u64> = None;
+
+    // Parse arguments
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--proof" => {
+                if i + 1 < args.len() {
+                    proof_json = args[i + 1].clone();
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+            "--max-age" => {
+                if i + 1 < args.len() {
+                    max_age = args[i + 1].parse().ok();
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+            _ => i += 1,
+        }
+    }
+
+    // Parse proof
+    let proof: ZkProof = match serde_json::from_str(&proof_json) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Invalid proof JSON: {}", e);
+            return;
+        }
+    };
+
+    // Create verification request
+    let request = VerificationRequest {
+        proof,
+        expected_signals: None,
+        max_age,
+    };
+
+    // Verify proof
+    let mut verifier = Verifier::new();
+    // Replace lines 269-272 with this:
+   let circuits = verifier.get_circuits();
+
+
+    match verifier.verify_proof(request) {
+        Ok(result) => match serde_json::to_string_pretty(&result) {
+            Ok(json) => println!("{}", json),
+            Err(e) => eprintln!("Serialization error: {}", e),
+        },
+        Err(e) => eprintln!("Verification failed: {}", e),
+    }
 }
 
 fn cmd_encode_qr(args: &[String]) {

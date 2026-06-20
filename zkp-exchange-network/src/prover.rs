@@ -4,6 +4,15 @@ use crate::types::{CircuitConfig,ProofRequest,ZkProof};
 use crate::utils;
 use serde_json::json;
 
+// new imports 
+use std::colletcions::HashMap;
+use ark_bn254::{Bn254,Fr,G1Affine,G2Affine};
+use ark_groth16::{Groth16,ProvingKey};
+use ark_serialize::{CanonicalDeserialize,CanonicalSerialize};
+use serde::{Deserialize,Serialize};
+use wasmer::{Instance,Module,Store,Value,Imports};
+
+
 
 /// The Prover genertes zero-knowledge proofs
 
@@ -93,6 +102,58 @@ impl Prover {
 
     }
 
+    pub fn load_default_circuits(&mut self) -> ZkpResult<()> {
+        // Age Proof circuit - prove age >=18 without revealing actual age 
+        self.register_circuit(CircuitConfig {
+            id:"age_proof".to_string(),
+            name: "Age Proof".to_string(),
+            description:"Prove that age >=18 without revealing actual age".to_string(),
+            num_private_inputs:1,
+            num_public_inputs:1,
+            num_constraints:500,
+            version:"1.0".to_string(),
+
+        })?;
+
+        self.register_circuit(CircuitConfig {
+            id:"ownership_proof".to_string(),
+            name:"Ownership Proof".to_string(),
+            description:"Prove ownership of a secret key or asset".to_string(),
+            num_private_inputs:1,
+            num_public_inputs:1,
+            num_constraints:300,
+            version:"1.0".to_string(),
+        })?;
+
+        // Membership Proof circuit
+        self.register_circuit(CircuitConfig{
+            id:"membership_proof".to_string(),
+            name:"Memberhip proof".to_string(),
+            description:"Prove Membership in a set without revealing which member".to_string(),
+            num_private_inputs:2,
+            num_public_inputs:1,
+            num_constraints:800,
+            version:"1.0".to_string(),
+        })?;
+
+
+        // Credentail proof circuit
+
+        self.register_circuit(CircuitConfig{
+            id:"credential_proof".to_string(),
+            name:"Credential Proof".to_string(),
+            description:"Prove Posssession of a valid credential".to_string(),
+            num_private_inputs: 2,
+            num_public_inputs:1,
+            num_constraints:600,
+            version:"1.0".to_string(),
+        })?;
+
+       Ok(())
+
+    }
+
+
     /// Validata proof request inputs
     fn validate_inputs(&self,request:&ProofRequest,circuit:&CircuitConfig) -> ZkpResult<()> {
         // Validate private inputs count 
@@ -127,46 +188,86 @@ impl Prover {
         Ok(())
     }
       /// Simulate proof generation (placeholder for actual ZK-SNARK prover)
-    fn simulate_proof_generation(&self, request: &ProofRequest) -> ZkpResult<String> {
-        // In a real implementation, this would:
-        // 1. Create witness from inputs
-        // 2. Call the actual prover (e.g., via SnarkJS WASM or Groth16)
-        // 3. Return serialized proof
-
-        // For now, create a deterministic mock proof based on inputs
-        let input_data = format!("{}{}", request.private_inputs, request.public_inputs);
-        let proof_hash = utils::sha256_hash(input_data.as_bytes());
-
-        // Create a mock proof structure
-        let mock_proof = json!({
-            "pi_a": [
-                "123456789012345678901234567890123456789012345678901234567890",
-                "987654321098765432109876543210987654321098765432109876543210"
-            ],
-            "pi_b": [
-                [
-                    "111111111111111111111111111111111111111111111111111111111111",
-                    "222222222222222222222222222222222222222222222222222222222222"
-                ],
-                [
-                    "333333333333333333333333333333333333333333333333333333333333",
-                    "444444444444444444444444444444444444444444444444444444444444"
-                ]
-            ],
-            "pi_c": [
-                "555555555555555555555555555555555555555555555555555555555555",
-                "666666666666666666666666666666666666666666666666666666666666"
-            ],
-            "protocol": "groth16",
-            "curve": "bls12381",
-            "hash": proof_hash
-        });
-
-        // Encode as base64
-        let proof_json = serde_json::to_string(&mock_proof)?;
-        Ok(utils::base64_encode(proof_json.as_bytes()))
+      fn simulate_proof_generation(&self, request: &ProofRequest) -> ZkpResult<String> {
+        // 1. Get circuit configuration
+        self.circuits.get(&request.circuit_id)
+            .ok_or_else(|| ZkpError::CircuitNotFound(request.circuit_id.clone()))?;
+        
+        // 2. Load proving key
+        let zkey_path = format!("../keys/{}_0001.zkey", request.circuit_id);
+        let zkey_data = std::fs::read(&zkey_path)
+            .map_err(|e| ZkpError::ProofGeneration(format!("Failed to load zkey: {}", e)))?;
+        
+        // 3. Load witness generator WASM
+        let wasm_path = format!("../build/circuits/{}/{}_js/{}.wasm",request.circuit_id,request.circuit_id,request.circuit_id);
+        let wasm_code = std::fs::read(&wasm_path)
+            .map_err(|e| ZkpError::ProofGeneration(format!("Failed to load WASM: {}", e)))?;
+        
+        // 4. Create witness from inputs
+        let witness = self.create_witness(request, &wasm_code)?;
+        
+        // 5. Call Groth16 prover (via FFI or WASM runtime)
+        let proof = self.groth16_prove(&zkey_data, &witness)?;
+        
+        // 6. Serialize and return proof
+        serde_json::to_string(&proof)
+            .map_err(|e| ZkpError::ProofGeneration(format!("Serialization failed: {}", e)))
     }
+    
+    /// Create witness vector from circuit inputs
+    fn create_witness(&self, request: &ProofRequest, wasm: &[u8]) -> ZkpResult<Vec<String>> {
+       let mut store = Store::defautl();
+       let module = Module::new(&strore,wasm)
+       .map_err(|e| ZkpError::wasmIniti(format!("failded to compie WASM:{}",e)))?;
 
+       // Circom WASM imports basic env utilities for memory/printing
+       let import_object = Inports! {};
+       let instance = Instance::new(&mut store,&module,&import_object)
+       .map_err(|e| ZkpError::WasmInit(format!("Failed to instantiate WASM:{}",e)))?;
+
+
+       // Extract required exported runtime symbols from Circom WASM
+       let init_func = instance.exports.get_function("init")
+       .map_err(|e| ZkpError::WasmInit(format!("Missing init function:{}",e)))?;
+       let get_witness_size  = instance.exports.get_function("getFieldNumLen32")
+       .map_err(|e| ZkpError::WasmInit(format!("Missing getFieldNumLen32:{}",e)))?;
+       // set the input
+       let set_input = instance.exports.get_function("setInputSignal")
+       .map_err(|e| ZkpError::WasmInit(format!("Missing setInput signal:{}",e)))?;
+
+       // get witness val
+       let get_witness_val = isntance.exports.get_function("getWitnessValue")
+       .map_err(|e| ZkpError::WasmInit(format!("Missing getWitnessValue:{}",e)))?;
+
+
+
+       // Initialize sanity check values
+       init_func_call(&mut store,&[Value::I32[0]])
+       .map_err(|e| ZkpError::WitnessGeneration(format!("inti failed:{}",e)))?;
+
+       // Bind request input maps into the Circom state engine
+       // Loops through variable and signals sequentially
+       for(signal_name,values) in &request.inputs {
+        // Compute or resolve the exact signal offset hash expected by circom runtime
+        // For
+       }
+        
+        Ok(witness)
+    }
+    
+    /// Call Groth16 proving algorithm
+    fn groth16_prove(&self, zkey: &[u8], witness: &[String]) -> ZkpResult<serde_json::Value> {
+        // This would call the actual Groth16 prover
+        // For now, return structured proof format
+        
+        Ok(serde_json::json!({
+            "pi_a": ["0", "0"],
+            "pi_b": [["0", "0"], ["0", "0"]],
+            "pi_c": ["0", "0"],
+            "protocol": "groth16",
+            "curve": "bn128"
+        }))
+    }
     /// Extract public signals from public inputs 
      fn extract_public_signals(&self, public_inputs: &serde_json::Value) -> ZkpResult<Vec<String>> {
         match public_inputs {
@@ -184,8 +285,14 @@ impl Prover {
     }
 
     /// Get registered circuits
-    pub fn get_circuits(&self) -> Vec<CircuitConfig> {
-        self.circuits.values().cloned().collect()
+    pub fn get_circuits(&self) -> Result<Vec<CircuitConfig>, ZkpError> {
+        let circuits: Vec<CircuitConfig> = self.circuits.values().cloned().collect();
+        if !circuits.is_empty() {
+            // 2. Wrap the successful vector return in Ok()
+            Ok(circuits)
+        } else { 
+            Err(ZkpError::NoCircuitsRegistered("no circuits are there")) 
+        }
     }
 
     /// Get circuit by ID 

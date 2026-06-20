@@ -11,10 +11,36 @@ pub enum ZkpError {
     #[error("Invalid proof format:{0}")]
     InvalidProofFormat(String),
 
+    #[error("Circuit not found: {0}")]
+    CircuitNotFound(String),
+
+    #[error("Proof generation failed: {0}")]
+    ProofGeneration(String),
+
+    #[error("Verification failed: {0}")]
+    Verification(String),
+
+    // 2. Add this variant to automatically handle serde_json errors
+   
+
     /// circuit error
     #[error("Circuit error:{0}")]
     CircuitError(String),
 
+    /// no circuits registered
+    #[error("No circuits registered:{0}")]
+    NoCircuitsRegistered(&'static str),
+
+    #[error("WASM Runtime initialization error: {0}")]
+    WasmInit(String),
+    #[error("Witness generation failed: {0}")]
+    WitnessGeneration(String),
+    #[error("Invalid Proving Key (zkey) format: {0}")]
+    InvalidZkey(String),
+    #[error("Proof generation failed: {0}")]
+    ProofGeneration(String),
+    #[error("Serialization failed: {0}")]
+    Serialization(String)
     /// keyerror
     #[error("Key management error:{0}")]
     KeyError(String),

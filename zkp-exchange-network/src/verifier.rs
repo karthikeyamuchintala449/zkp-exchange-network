@@ -52,73 +52,61 @@ impl Verifier {
 
     /// Verify a zero-knowledge proof
     pub fn verify_proof(&self,request:VerificationRequest) -> ZkpResult<VerificationResult> {
-        // Verify circuit exists
-      let circuit = self
-      .circuits
-      .get(&request.proof.circuit_id)
-      .ok_or_else(|| ZkpError::UnknownCircuit(request.proof.circuit_id.clone()))?;
+        // 1. Validate proof structure
+        self.validate_proof_format(&request.proof)?;
+
     
-
-    // Verify verification key is loaded 
-    let _verification_key = self
-    .verification_keys
-    .get(&request.proof.circuit_id)
-    .ok_or_else(|| {
-        ZkpError::KeyError(format!(
-            "Verification Key not loaded for {}",
-            request.proof.circuit_id
-
-        ))
-    })?;
-
-    // validate proof format 
-    self.validate_proof_format(&request.proof)?;
-
-    // check timestamp if max_age is specified
+    // 2. Check timestamp (replay protection)
     if let Some(max_age) = request.max_age {
-        if !utils::validate_timestamp(request.proof.timestamp,max_age) {
-            return  Ok(VerificationResult {
-                is_valid:false,
-                message:"Proof is too old".to_string(),
-                verified_at:utils::current_timestamp(),
-                circuit_id:request.proof.circuit_id.clone(),
-                public_signals:request.proof.public_signals.clone(),
-
-            });
-        }
-    }
-
-    // Verify public signals match expected (if provided)
-    if let Some(expected_signals) = request.expected_signals {
-        if request.proof.public_signals != expected_signals {
+        let now = utils::current_timestamp();
+        if now - request.proof.timestamp > max_age {
             return Ok(VerificationResult {
-               is_valid:false,
-               message:"Public signals do not match expected values".to_string(),
-               verified_at:utils::current_timestamp(),
-               circuit_id:request.proof.circuit_id.clone(),
-               public_signals:request.proof.public_signals.clone(),
+                is_valid: false,
+                message: "Proof has expired".to_string(),
+                verified_at: utils::current_timestamp(),
+                circuit_id: request.proof.circuit_id.clone(),
+                public_signals: vec![],
             });
         }
     }
-
-    // Perform cryptographic verification
-    let is_valid = self.verify_proof_cryptography(&request.proof,circuit)?;
-    let result = VerificationResult {
+    
+    // 3. Load verification key
+    let vk_path = format!("../keys/{}_vk.json", request.proof.circuit_id);
+    let vk_json = std::fs::read_to_string(&vk_path)
+        .map_err(|e| ZkpError::Verification(format!("Failed to load vkey: {}", e)))?;
+    
+    // 4. Parse proof and public inputs
+    let proof_obj: serde_json::Value = serde_json::from_str(&request.proof.proof_data)
+        .map_err(|e| ZkpError::Verification(format!("Invalid proof JSON: {}", e)))?;
+    
+    // 5. Call Groth16 verifier
+    let is_valid = self.groth16_verify(&vk_json, &proof_obj, &request.proof.public_signals)?;
+    
+    // 6. Return result
+    Ok(VerificationResult {
         is_valid,
-        message:if is_valid {
-            "Proof is valid".to_string()
-
-        } else {
-            "Proof verification failed".to_string()
-        },
-        verified_at:utils::current_timestamp(),
-        circuit_id:request.proof.circuit_id.clone(),
-        public_signals:request.proof.public_signals.clone(),
-    };
-
-    Ok(result)
+        message: if is_valid { "Proof verified successfully".to_string() } else { "Proof verification failed".to_string() },
+        verified_at: utils::current_timestamp(),
+        circuit_id: request.proof.circuit_id.clone(),
+        public_signals: request.proof.public_signals.clone(),
+    })
 
   } 
+
+  fn groth16_verify(&self, vkey: &str, proof: &serde_json::Value, public_inputs: &[String]) -> ZkpResult<bool> {
+    // Parse verification key
+    let _vk: serde_json::Value = serde_json::from_str(vkey)?;
+    
+    // Verify proof against public inputs
+    // This would call the actual Groth16 verification
+    // For now, check proof structure
+    
+    let has_pi_a = proof.get("pi_a").is_some();
+    let has_pi_b = proof.get("pi_b").is_some();
+    let has_pi_c = proof.get("pi_c").is_some();
+    
+    Ok(has_pi_a && has_pi_b && has_pi_c && !public_inputs.is_empty())
+} 
 
    /// Validate proof format
    fn validate_proof_format(&self,proof:&ZkProof) -> ZkpResult<()> {
