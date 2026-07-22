@@ -14,8 +14,7 @@ pub enum ZkpError {
     #[error("Circuit not found: {0}")]
     CircuitNotFound(String),
 
-    #[error("Proof generation failed: {0}")]
-    ProofGeneration(String),
+
 
     #[error("Verification failed: {0}")]
     Verification(String),
@@ -40,7 +39,7 @@ pub enum ZkpError {
     #[error("Proof generation failed: {0}")]
     ProofGeneration(String),
     #[error("Serialization failed: {0}")]
-    Serialization(String)
+    Serialization(String),
     /// keyerror
     #[error("Key management error:{0}")]
     KeyError(String),

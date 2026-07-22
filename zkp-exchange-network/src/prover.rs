@@ -5,7 +5,7 @@ use crate::utils;
 use serde_json::json;
 
 // new imports 
-use std::colletcions::HashMap;
+use std::collections::HashMap;
 use ark_bn254::{Bn254,Fr,G1Affine,G2Affine};
 use ark_groth16::{Groth16,ProvingKey};
 use ark_serialize::{CanonicalDeserialize,CanonicalSerialize};
@@ -215,13 +215,13 @@ impl Prover {
     }
     
     /// Create witness vector from circuit inputs
-    fn create_witness(&self, request: &ProofRequest, wasm: &[u8]) -> ZkpResult<Vec<String>> {
-       let mut store = Store::defautl();
-       let module = Module::new(&strore,wasm)
-       .map_err(|e| ZkpError::wasmIniti(format!("failded to compie WASM:{}",e)))?;
+    fn create_witness(&self, request: &ProofRequest, wasm: &[u8]) -> <Vec<std::string::String>,ZkpError> {
+       let mut store = Store::default();
+       let module = Module::new(&store,wasm)
+       .map_err(|e| ZkpError::WasmInit(format!("failed to compile WASM:{}",e)))?;
 
        // Circom WASM imports basic env utilities for memory/printing
-       let import_object = Inports! {};
+       let import_object = Imports! {};
        let instance = Instance::new(&mut store,&module,&import_object)
        .map_err(|e| ZkpError::WasmInit(format!("Failed to instantiate WASM:{}",e)))?;
 
@@ -236,23 +236,24 @@ impl Prover {
        .map_err(|e| ZkpError::WasmInit(format!("Missing setInput signal:{}",e)))?;
 
        // get witness val
-       let get_witness_val = isntance.exports.get_function("getWitnessValue")
+       let get_witness_val = instance.exports.get_function("getWitnessValue")
        .map_err(|e| ZkpError::WasmInit(format!("Missing getWitnessValue:{}",e)))?;
 
 
 
        // Initialize sanity check values
-       init_func_call(&mut store,&[Value::I32[0]])
+    init_func.call(&mut store,&[Value::I32(0)])
        .map_err(|e| ZkpError::WitnessGeneration(format!("inti failed:{}",e)))?;
 
        // Bind request input maps into the Circom state engine
        // Loops through variable and signals sequentially
-       for(signal_name,values) in &request.inputs {
+       for(signal_name,values) in &request.public_inputs.as_object().unwrap() {
         // Compute or resolve the exact signal offset hash expected by circom runtime
         // For
+        Ok(witness)
        }
         
-        Ok(witness)
+        
     }
     
     /// Call Groth16 proving algorithm
